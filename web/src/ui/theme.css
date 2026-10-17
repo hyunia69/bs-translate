@@ -1,0 +1,1525 @@
+/* =====================================================================
+   bs-translator UI — "Paper & Ink" design system (contract: /DESIGN.md)
+   Imported once from web/src/ui/index.ts.
+   Every visual value (color, radius, size, weight, shadow, motion) is a
+   token in sections 1-2; components use the skin classes below and
+   Tailwind utilities for layout (flex/grid/gap) only.
+   ===================================================================== */
+
+/* ---------- 1. Color tokens. Default theme "contrast" = light paper (booth default) ---------- */
+:root,
+[data-theme="contrast"] {
+  color-scheme: light;
+
+  --canvas: #f5f5f7; /* app background */
+  --card: #ffffff; /* bubbles, keys, controls */
+  --ink: #1d1d1f; /* primary text */
+  --ink-2: #515154; /* source text */
+  --ink-3: #6e6e73; /* hints, meta */
+  --hair: rgb(0 0 0 / 0.08); /* structural hairline */
+  --hair-2: rgb(0 0 0 / 0.14); /* field outlines, facing divider */
+  --track: #e9e9eb; /* segmented-control track, chips */
+  --track-2: #dcdce0; /* pressed chip */
+
+  --me-wash: #e1f3fe; /* rep: pale blue */
+  --me-ink: #1f6c9f;
+  --pt-wash: #fbf3db; /* visitor: pale yellow */
+  --pt-ink: #845600;
+
+  --rec: #d70015; /* recording key + frame */
+  --rec-fg: #ffffff;
+  --rec-glow: rgb(215 0 21 / 0.32);
+  --ok: #34c759; /* connection dot: ready */
+  --warn: #ff9f0a; /* connection dot: busy */
+  --bad: #d70015; /* connection dot: offline / error */
+  --idle: #aeaeb2; /* connection dot: idle */
+  --tint-bad: #fdebec; /* banner tints + their text */
+  --tint-bad-ink: #9f2f2d;
+  --tint-warn: #fbf3db;
+  --tint-warn-ink: #845600;
+  --tint-info: #e1f3fe;
+  --tint-info-ink: #1f6c9f;
+
+  --invert: #1d1d1f; /* "번역 시작하기", primary button */
+  --invert-fg: #ffffff;
+  --focus: #0071e3; /* the only blue: keyboard focus ring */
+
+  --elev-1: 0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.04); /* cards, selected pill */
+  --elev-2: 0 0 0 1px rgb(0 0 0 / 0.06), 0 2px 8px rgb(0 0 0 / 0.06); /* keys, start */
+  --elev-rec: 0 0 0 1px rgb(0 0 0 / 0.06), 0 6px 20px var(--rec-glow);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --canvas: #000000;
+  --card: #272729;
+  --ink: #f5f5f7;
+  --ink-2: #c7c7cc;
+  --ink-3: #98989d;
+  --hair: rgb(255 255 255 / 0.1);
+  --hair-2: rgb(255 255 255 / 0.18);
+  --track: #2c2c2e;
+  --track-2: #3a3a3c;
+
+  --me-wash: #0f2740;
+  --me-ink: #8ec5ff;
+  --pt-wash: #33240a;
+  --pt-ink: #ffd27a;
+
+  --rec: #e0302a;
+  --rec-fg: #ffffff;
+  --rec-glow: rgb(224 48 42 / 0.4);
+  --ok: #30d158;
+  --warn: #ffb340;
+  --bad: #ff6961;
+  --idle: #636366;
+  --tint-bad: #3a1216;
+  --tint-bad-ink: #ffb3ba;
+  --tint-warn: #33240a;
+  --tint-warn-ink: #ffd27a;
+  --tint-info: #0f2740;
+  --tint-info-ink: #8ec5ff;
+
+  --invert: #f5f5f7;
+  --invert-fg: #000000;
+  --focus: #2997ff;
+
+  --elev-1: 0 0 0 1px rgb(255 255 255 / 0.08);
+  --elev-2: 0 0 0 1px rgb(255 255 255 / 0.08), 0 2px 8px rgb(0 0 0 / 0.5);
+  --elev-rec: 0 0 0 1px rgb(255 255 255 / 0.08), 0 6px 20px var(--rec-glow);
+}
+
+/* ---------- 2. Type, spacing, radius, size, motion tokens (theme independent) ---------- */
+:root {
+  --font-sans:
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR",
+    "Malgun Gothic", "Hiragino Sans", "PingFang SC", "Noto Sans CJK SC", "Noto Sans SC", system-ui, sans-serif;
+
+  /* fixed UI chrome scale (not affected by the font-scale setting) */
+  --fs-meta: 11px; /* tags, time, status lines */
+  --fs-hint: 12px; /* key hints, start hint, stop pill */
+  --fs-ui: 13px; /* segments, chips, session strip, banner body */
+  --fs-body: 16px; /* settings, inputs (never below 16px: no iOS zoom) */
+  --fs-key: 18px; /* talk key language name, sheet title */
+  --fs-cta: 20px; /* start label */
+  --fs-timer: 26px; /* recording mm:ss inside a 72px key */
+  --fs-title: 28px; /* PIN title */
+  --fs-pin: 34px; /* PIN digits */
+
+  /* reading scale: multiplied by --font-scale (1 / 1.25 / 1.5) */
+  --font-scale: 1;
+  --fs-src: 15px; /* source text (spec 14-16px) */
+  --fs-tgt: 26px; /* translated text (spec >= 24px at scale 1) */
+  --fs-facing: 28px; /* face-to-face translated text */
+
+  --lh-tight: 1.1;
+  --lh-reading: 1.3;
+  --lh-body: 1.4;
+  --track-tight: -0.012em;
+  --track-meta: 0.02em;
+  --w-regular: 400;
+  --w-semibold: 600;
+  --w-bold: 700;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+
+  --r-sm: 10px; /* inputs, buttons, chips */
+  --r-md: 16px; /* bubbles, sheet cards */
+  --r-lg: 18px; /* talk keys, start key */
+  --r-full: 999px; /* segments, tags, pills */
+  --r-flag: 3px;
+
+  --bw: 1px;
+  --bw-frame: 5px; /* recording frame */
+  --bw-divider: 6px; /* facing divider */
+  --tap: 44px; /* minimum touch target */
+  --hdr-h: 56px;
+  --bar-h: 44px;
+  --key-h: 72px; /* talk key (owner decision 2026-10-16) */
+  --start-h: 96px; /* start key carries a hint, never shares the dock with talk keys */
+  --chip-h: 38px;
+  --meter-h: 4px;
+  --flag-w: 20px;
+  --flag-h: 14px;
+  --flag-key-w: 24px;
+  --flag-key-h: 17px;
+  --dot: 10px;
+
+  --t-fast: 120ms ease-out; /* state changes */
+  --t-press: 80ms ease-out; /* press scale */
+  --blink: 1s steps(2, start); /* busy dot, countdown */
+}
+[data-font-scale="1"] {
+  --font-scale: 1.25;
+}
+[data-font-scale="2"] {
+  --font-scale: 1.5;
+}
+
+/* ---------- 3. Base ---------- */
+html,
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+}
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-font-smoothing: antialiased;
+}
+button,
+[role="button"] {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+input,
+select,
+textarea {
+  font-size: max(16px, 1em);
+  font-family: inherit;
+}
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+svg {
+  display: block;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.flag {
+  display: inline-block;
+  flex: none;
+  width: var(--flag-w);
+  height: var(--flag-h);
+  border-radius: var(--r-flag);
+  overflow: hidden;
+  outline: var(--bw) solid rgb(0 0 0 / 0.16);
+  outline-offset: -1px;
+}
+.flag svg {
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+@keyframes pending {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+@keyframes rec-frame {
+  50% {
+    box-shadow:
+      inset 0 0 0 var(--bw-frame) var(--rec),
+      inset 0 0 48px var(--rec-glow);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell[data-recording="true"]::after,
+  .dot--busy,
+  .ptt__left,
+  .pending i,
+  .bubble--playing .bubble__audio,
+  .facing-item--playing .bubble__audio {
+    animation: none;
+  }
+}
+
+/* ---------- 4. App shell ---------- */
+.app-shell {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 430px;
+  margin-inline: auto;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--canvas);
+  color: var(--ink);
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+}
+@media (min-width: 431px) {
+  .app-shell {
+    border-inline: var(--bw) solid var(--hair-2);
+  }
+}
+/* recording frame: 5px red line + inner glow over everything, taps pass through */
+.app-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--t-fast);
+}
+.app-shell[data-recording="true"]::after {
+  opacity: 1;
+  box-shadow:
+    inset 0 0 0 var(--bw-frame) var(--rec),
+    inset 0 0 32px var(--rec-glow);
+  animation: rec-frame 1.1s ease-in-out infinite;
+}
+
+/* landscape guard: only real phones in landscape, not short desktop windows */
+.landscape-guard {
+  display: none;
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .landscape-guard {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-3);
+    padding: var(--sp-6);
+    text-align: center;
+    background: var(--canvas);
+    color: var(--ink);
+    font-size: var(--fs-cta);
+    font-weight: var(--w-bold);
+    letter-spacing: var(--track-tight);
+  }
+}
+.landscape-guard__icon {
+  width: 48px;
+  height: 48px;
+  color: var(--ink-3);
+}
+
+/* ---------- 5. Header ---------- */
+.hdr {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: var(--hdr-h);
+  padding: 0 var(--sp-3);
+  background: var(--canvas);
+}
+.hdr__right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* segmented control: capsule track, the pressed cell is a raised white pill */
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--track);
+  border-radius: var(--r-full);
+}
+.seg__btn {
+  height: 32px;
+  min-width: 44px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-full);
+  font-size: var(--fs-ui);
+  font-weight: var(--w-semibold);
+  line-height: 1;
+  color: var(--ink-2);
+  white-space: nowrap;
+  transition:
+    background-color var(--t-fast),
+    color var(--t-fast);
+}
+.seg__btn[aria-pressed="true"] {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--elev-1);
+}
+.seg__btn:disabled {
+  opacity: 0.45;
+}
+.seg--lg {
+  display: flex;
+  width: 100%;
+}
+.seg--lg .seg__btn {
+  flex: 1;
+  height: var(--tap);
+  font-size: var(--fs-body);
+}
+
+/* connection status: a dot with a halo in its own color */
+.dot {
+  flex: none;
+  width: var(--dot);
+  height: var(--dot);
+  border-radius: 50%;
+  background: var(--idle);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--idle) 22%, transparent);
+}
+.dot--ready {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent);
+}
+.dot--busy {
+  background: var(--warn);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 22%, transparent);
+  animation: blink var(--blink) infinite;
+}
+.dot--bad {
+  background: var(--bad);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 22%, transparent);
+}
+
+/* chip: the header's mode toggle and gear, the sheet's close */
+.icon-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  min-width: var(--chip-h);
+  height: var(--chip-h);
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-full);
+  background: var(--track);
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  font-weight: var(--w-semibold);
+  white-space: nowrap;
+  transition: background-color var(--t-fast);
+}
+.icon-btn svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.icon-btn:active {
+  background: var(--track-2);
+}
+
+/* ---------- 6. Session strip ---------- */
+.session-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: var(--bar-h);
+  margin: 0 var(--sp-3);
+  padding: 0 0 0 var(--sp-1);
+  border-top: var(--bw) solid var(--hair);
+  border-bottom: var(--bw) solid var(--hair);
+  font-size: var(--fs-ui);
+  font-weight: var(--w-semibold);
+  color: var(--ink-2);
+}
+.session-bar .dot {
+  width: 8px;
+  height: 8px;
+  margin-right: var(--sp-2);
+}
+.session-bar__text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-bar__engine {
+  color: var(--ink-3);
+}
+.session-bar__time {
+  flex: none;
+  margin-left: 0.3em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* "번역 중지": a red-tinted pill at the end of the strip, never the look of a talk key */
+.session-bar__stop {
+  flex: none;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px 0 8px;
+  border-radius: var(--r-full);
+  background: var(--tint-bad);
+  color: var(--tint-bad-ink);
+  font-size: var(--fs-hint);
+  font-weight: var(--w-bold);
+  white-space: nowrap;
+  transition: background-color var(--t-fast);
+}
+.session-bar__stop svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.session-bar__stop:active {
+  background: color-mix(in srgb, var(--tint-bad-ink) 18%, var(--tint-bad));
+}
+
+/* ---------- 7. Banner ---------- */
+.banner {
+  --banner-bg: var(--tint-info);
+  --banner-ink: var(--tint-info-ink);
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: var(--sp-2) var(--sp-3) 0;
+  padding: 10px var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--banner-bg);
+  color: var(--ink);
+  box-shadow: var(--elev-1);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-body);
+}
+.banner--bad {
+  --banner-bg: var(--tint-bad);
+  --banner-ink: var(--tint-bad-ink);
+}
+.banner--warn {
+  --banner-bg: var(--tint-warn);
+  --banner-ink: var(--tint-warn-ink);
+}
+.banner__title {
+  font-size: var(--fs-body);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--track-tight);
+  color: var(--banner-ink);
+}
+.banner__body {
+  margin-top: 2px;
+  color: var(--ink-2);
+}
+.banner__close {
+  flex: none;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--banner-ink) 12%, transparent);
+  color: var(--banner-ink);
+}
+.banner__close svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------- 8. Message list + bubbles ---------- */
+.msg-list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.msg-list__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 100%;
+  padding: 14px var(--sp-3) var(--sp-3);
+}
+.msg-list__empty {
+  margin: auto;
+  padding: var(--sp-6);
+  text-align: center;
+  color: var(--ink-3);
+  font-size: var(--fs-body);
+  line-height: 1.5;
+}
+
+/* one turn: a white card; the speaker shows in the alignment and the pastel tag, never in a colored border */
+.bubble {
+  --speaker-ink: var(--me-ink);
+  --speaker-wash: var(--me-wash);
+  position: relative;
+  max-width: 88%;
+  padding: 10px 14px 12px;
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--elev-1);
+  text-align: left;
+}
+.bubble--me {
+  align-self: flex-end;
+  border-bottom-right-radius: 6px;
+}
+.bubble--partner {
+  --speaker-ink: var(--pt-ink);
+  --speaker-wash: var(--pt-wash);
+  align-self: flex-start;
+  border-bottom-left-radius: 6px;
+}
+.bubble--error {
+  --speaker-ink: var(--tint-bad-ink);
+  --speaker-wash: var(--tint-bad);
+}
+.bubble__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: 6px;
+  font-size: var(--fs-meta);
+  font-weight: var(--w-semibold);
+  letter-spacing: var(--track-meta);
+  color: var(--ink-3);
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 var(--sp-2) 0 var(--sp-1);
+  border-radius: var(--r-full);
+  background: var(--speaker-wash);
+  color: var(--speaker-ink);
+  font-size: var(--fs-meta);
+  font-weight: var(--w-bold);
+  white-space: nowrap;
+}
+.bubble__time {
+  font-variant-numeric: tabular-nums;
+}
+.bubble__audio {
+  margin-left: auto;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-3);
+}
+.bubble__audio svg {
+  width: 100%;
+  height: 100%;
+}
+.bubble__src {
+  font-size: calc(var(--fs-src) * var(--font-scale));
+  line-height: var(--lh-body);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.bubble__tgt {
+  margin-top: var(--sp-1);
+  font-size: calc(var(--fs-tgt) * var(--font-scale));
+  line-height: var(--lh-reading);
+  font-weight: var(--w-semibold);
+  letter-spacing: var(--track-tight);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.bubble__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--sp-2);
+  font-size: var(--fs-hint);
+  font-weight: var(--w-semibold);
+  color: var(--speaker-ink);
+}
+.bubble__status svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.bubble--tappable {
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.bubble--tappable:active {
+  filter: brightness(0.96);
+}
+.bubble--playing {
+  box-shadow:
+    var(--elev-1),
+    0 0 0 3px var(--speaker-wash);
+}
+.bubble--playing .bubble__audio {
+  color: var(--speaker-ink);
+  animation: blink 0.8s steps(2, start) infinite;
+}
+
+/* "still arriving": three stepping dots */
+.pending {
+  display: inline-flex;
+  gap: 3px;
+  vertical-align: middle;
+}
+.pending i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pending 1s ease-in-out infinite;
+}
+.pending i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.pending i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+/* ---------- 9. Talk keys ---------- */
+.ptt-bar {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: var(--sp-3) var(--sp-3) var(--sp-4);
+  border-top: var(--bw) solid var(--hair);
+  background: var(--canvas);
+}
+.ptt-bar--single {
+  grid-template-columns: 1fr;
+}
+.ptt {
+  --speaker-ink: var(--me-ink);
+  --speaker-wash: var(--me-wash);
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  min-height: var(--key-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  padding: 6px var(--sp-2) 8px;
+  border-radius: var(--r-lg);
+  background: var(--speaker-wash);
+  color: var(--ink);
+  box-shadow: var(--elev-2);
+  font-weight: var(--w-bold);
+  line-height: 1;
+  text-align: center;
+  transition:
+    transform var(--t-press),
+    background-color var(--t-fast),
+    opacity var(--t-fast);
+}
+.ptt--partner {
+  --speaker-ink: var(--pt-ink);
+  --speaker-wash: var(--pt-wash);
+}
+.ptt:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.ptt--recording {
+  background: var(--rec);
+  color: var(--rec-fg);
+  box-shadow: var(--elev-rec);
+}
+.ptt:disabled {
+  opacity: 0.4;
+  filter: saturate(0.3);
+}
+.ptt__flag {
+  width: var(--flag-key-w);
+  height: var(--flag-key-h);
+}
+.ptt__name {
+  font-size: var(--fs-key);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--track-tight);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ptt__hint {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-hint);
+  font-weight: var(--w-semibold);
+  color: var(--rec-fg);
+  opacity: 0.9;
+}
+.ptt__timer {
+  font-size: var(--fs-timer);
+  font-weight: var(--w-semibold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.ptt__left {
+  font-size: var(--fs-hint);
+  font-weight: var(--w-bold);
+  animation: blink var(--blink) infinite;
+}
+/* input level: a thin white track whose fill follows --level (0-100%) */
+.ptt__meter {
+  position: absolute;
+  left: var(--sp-4);
+  right: var(--sp-4);
+  bottom: 5px;
+  height: var(--meter-h);
+  border-radius: var(--r-full);
+  background: rgb(255 255 255 / 0.3);
+}
+.ptt__meter i {
+  display: block;
+  height: 100%;
+  width: var(--level, 0%);
+  border-radius: var(--r-full);
+  background: var(--rec-fg);
+  transition: width 70ms linear;
+}
+
+/* ---------- 9b. Session controls: start key, partner wait note ---------- */
+/* "번역 시작하기": dark fill (the system's selected look), never the wash of a talk key */
+.start-btn {
+  width: 100%;
+  min-height: var(--start-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  padding: 10px var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--invert);
+  color: var(--invert-fg);
+  box-shadow: var(--elev-2);
+  font-weight: var(--w-bold);
+  line-height: 1.1;
+  text-align: center;
+  transition: transform var(--t-press);
+}
+.start-btn:active {
+  transform: scale(0.97);
+}
+.start-btn__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-cta);
+  letter-spacing: var(--track-tight);
+}
+.start-btn__label svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+.start-btn__hint {
+  font-size: var(--fs-hint);
+  font-weight: var(--w-semibold);
+  opacity: 0.7;
+}
+
+/* partner half of facing mode while stopped: same footprint as the key it replaces */
+.wait-note {
+  min-height: var(--key-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--card);
+  box-shadow: var(--elev-1);
+  color: var(--ink-3);
+  font-size: var(--fs-key);
+  font-weight: var(--w-semibold);
+  text-align: center;
+}
+
+/* ---------- 10. Layouts ---------- */
+.onehand {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.facing {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.facing__half {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--canvas);
+}
+.facing__half--partner {
+  transform: rotate(180deg);
+}
+.facing__divider {
+  flex: none;
+  height: var(--bw-divider);
+  background: var(--hair-2);
+}
+.facing__list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.facing__inner {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 10px var(--sp-4) var(--sp-2);
+}
+.facing__ptt {
+  flex: none;
+  padding: 10px var(--sp-3) var(--sp-3);
+  border-top: var(--bw) solid var(--hair);
+  background: var(--canvas);
+}
+/* one translated utterance: hairline rows, the newest in full ink, older ones receding */
+.facing-item {
+  --speaker-ink: var(--me-ink);
+  --speaker-wash: var(--me-wash);
+  padding: 10px 0;
+  border-top: var(--bw) solid var(--hair);
+  color: var(--ink-2);
+}
+.facing-item:first-child {
+  border-top: 0;
+}
+.facing-item:last-child {
+  color: var(--ink);
+}
+.facing-item--partner {
+  --speaker-ink: var(--pt-ink);
+  --speaker-wash: var(--pt-wash);
+}
+.facing-item--error {
+  --speaker-ink: var(--tint-bad-ink);
+  --speaker-wash: var(--tint-bad);
+}
+.facing-item__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-1);
+  font-size: var(--fs-meta);
+  font-weight: var(--w-semibold);
+  letter-spacing: var(--track-meta);
+  color: var(--ink-3);
+}
+.facing-item__text {
+  font-size: calc(var(--fs-facing) * var(--font-scale));
+  line-height: 1.25;
+  font-weight: var(--w-semibold);
+  letter-spacing: var(--track-tight);
+  overflow-wrap: anywhere;
+}
+.facing-item--tappable {
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.facing-item--tappable:active .facing-item__text {
+  opacity: 0.7;
+}
+.facing-item--playing .facing-item__text {
+  color: var(--speaker-ink);
+}
+.facing-item--playing .bubble__audio {
+  color: var(--speaker-ink);
+  animation: blink 0.8s steps(2, start) infinite;
+}
+.facing-item__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: var(--fs-ui);
+  font-weight: var(--w-semibold);
+  color: var(--speaker-ink);
+}
+.facing-item__status svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/* ---------- 11. Sheet, forms, buttons ---------- */
+.sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--canvas);
+  color: var(--ink);
+}
+.sheet__hdr {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  height: var(--hdr-h);
+  padding: 0 var(--sp-3) 0 var(--sp-4);
+  border-bottom: var(--bw) solid var(--hair);
+}
+.sheet__title {
+  font-size: var(--fs-key);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--track-tight);
+}
+.sheet__body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  padding: var(--sp-4) var(--sp-3) 28px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.field__label {
+  font-size: var(--fs-ui);
+  font-weight: var(--w-semibold);
+  letter-spacing: var(--track-meta);
+  color: var(--ink-2);
+}
+.select {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 var(--sp-3);
+  border: var(--bw) solid var(--hair-2);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  font-weight: var(--w-semibold);
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 48px;
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--elev-1);
+  font-size: var(--fs-body);
+  font-weight: var(--w-bold);
+  text-decoration: none;
+  transition: transform var(--t-press);
+}
+.btn--primary {
+  background: var(--invert);
+  color: var(--invert-fg);
+}
+.btn--danger {
+  background: var(--tint-bad);
+  color: var(--tint-bad-ink);
+}
+.btn--block {
+  width: 100%;
+  min-height: 56px;
+  font-size: var(--fs-key);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 10px;
+  border-radius: var(--r-sm);
+  background: var(--tint-bad);
+  color: var(--ink);
+  font-weight: var(--w-semibold);
+}
+.log {
+  max-height: 240px;
+  overflow-y: auto;
+  border-radius: var(--r-sm);
+  background: var(--card);
+  box-shadow: var(--elev-1);
+  font-size: var(--fs-ui);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+.log__row {
+  padding: 6px 10px;
+  border-bottom: var(--bw) solid var(--hair);
+}
+.log__row:last-child {
+  border-bottom: 0;
+}
+.log__head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  color: var(--ink-3);
+}
+.log__nums {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--ink);
+}
+.log__empty {
+  padding: var(--sp-3);
+  color: var(--ink-3);
+}
+
+/* vertical choice list for long option labels (settings: engine); the selected card inverts */
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.choice__btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--elev-1);
+  font-size: var(--fs-body);
+  font-weight: var(--w-semibold);
+  text-align: left;
+  transition:
+    background-color var(--t-fast),
+    color var(--t-fast);
+}
+.choice__btn::before {
+  content: "";
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--hair-2);
+}
+.choice__btn[aria-pressed="true"] {
+  background: var(--invert);
+  color: var(--invert-fg);
+}
+.choice__btn[aria-pressed="true"]::before {
+  border-color: var(--invert-fg);
+  background: var(--invert-fg);
+  box-shadow: inset 0 0 0 4px var(--invert);
+}
+
+/* ---------- 12. PIN screen ---------- */
+.pin {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-5);
+  padding: var(--sp-6);
+}
+.pin__title {
+  font-size: var(--fs-title);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--track-tight);
+  line-height: var(--lh-tight);
+}
+.pin__sub {
+  margin-top: var(--sp-2);
+  color: var(--ink-3);
+  font-size: var(--fs-body);
+}
+.pin__input {
+  width: 100%;
+  min-height: 72px;
+  padding: 0 var(--sp-4);
+  border: var(--bw) solid var(--hair-2);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--fs-pin);
+  font-weight: var(--w-semibold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.35em;
+  text-align: center;
+}
+.pin__input:focus {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent);
+}
+.pin__error {
+  min-height: 1.4em;
+  color: var(--rec);
+  font-size: var(--fs-ui);
+  font-weight: var(--w-bold);
+}
+
+/* =====================================================================
+   13. Dual mode (contract: docs/dual-protocol.md)
+   Screens: MasterSetup, MasterWaiting, GuestEntry, GuestWaiting,
+   DualLayout, plus the settings sheet's booth PIN field. Tokens only;
+   the pair's identity reuses the rep (me) and visitor (partner) washes.
+   ===================================================================== */
+.dual-screen {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* setup / entry / waiting body: centered while it fits, scrolls (never clips) once it does not */
+.dual-setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  margin-block: auto;
+}
+/* English sub-line beside Korean copy (no language chosen yet) */
+.dual-sub {
+  color: var(--ink-3);
+  font-weight: var(--w-semibold);
+}
+.btn .dual-sub {
+  color: inherit;
+  opacity: 0.7;
+}
+/* language choice: 2x2 flag cards; the flag and the inverted fill carry the state, no radio circle */
+.choice--grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.choice--grid .choice__btn {
+  min-height: 56px;
+  font-weight: var(--w-bold);
+}
+.choice--grid .choice__btn::before {
+  display: none;
+}
+.choice--grid .flag {
+  width: var(--flag-key-w);
+  height: var(--flag-key-h);
+}
+/* an odd last card (a guest is offered three languages) spans the row instead of leaving a hole */
+.choice--grid .choice__btn:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* one-line notice in my language, supplied by the controller: wrong PIN, booth offline, ended, declined, replaced */
+.dual-notice {
+  flex: none;
+  margin: var(--sp-2) var(--sp-3) 0;
+  padding: 10px var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--tint-warn);
+  color: var(--tint-warn-ink);
+  font-size: var(--fs-ui);
+  font-weight: var(--w-bold);
+  line-height: var(--lh-body);
+}
+.dual-setup .dual-notice {
+  margin: 0;
+}
+
+/* identity pill: flag + short label ("부스", "게스트 123", a language name); me in the rep wash, the partner in the visitor wash */
+.dual-side {
+  --speaker-ink: var(--me-ink);
+  --speaker-wash: var(--me-wash);
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 var(--sp-2) 0 6px;
+  border-radius: var(--r-full);
+  background: var(--speaker-wash);
+  color: var(--speaker-ink);
+  font-size: var(--fs-body);
+  font-weight: var(--w-bold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.dual-side--partner {
+  --speaker-ink: var(--pt-ink);
+  --speaker-wash: var(--pt-wash);
+}
+/* the label gives way (ellipsis) before the header overflows */
+.dual-side__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dual-pair {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.dual-pair__arrow {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--ink-3);
+}
+.dual-hdr__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-ui);
+  font-weight: var(--w-bold);
+  color: var(--ink-3);
+}
+/* end / cancel: the chip in the danger tint, like the session strip's stop pill */
+.icon-btn--danger {
+  background: var(--tint-bad);
+  color: var(--tint-bad-ink);
+}
+.icon-btn--danger:active {
+  background: color-mix(in srgb, var(--tint-bad-ink) 18%, var(--tint-bad));
+}
+
+/* master waiting: the column under the header owns the scroll, like .msg-list */
+.dual-list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-3) var(--sp-4);
+}
+
+/* booth card (master waiting, settings sheet): the PIN in the largest digits on screen, the guest URL under it */
+.booth {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-4);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--elev-1);
+}
+.booth__cap {
+  font-size: var(--fs-ui);
+  font-weight: var(--w-semibold);
+  letter-spacing: var(--track-meta);
+  color: var(--ink-3);
+}
+.booth__pin + .booth__cap,
+.booth__url + .booth__cap {
+  margin-top: var(--sp-3);
+}
+.booth__pin {
+  font-size: var(--fs-pin);
+  font-weight: var(--w-semibold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.35em;
+  line-height: 1.2;
+}
+.booth--compact .booth__pin {
+  font-size: var(--fs-title);
+}
+/* selectable so the master can copy it; everything else on screen keeps the no-selection default */
+.booth__url {
+  font-size: var(--fs-body);
+  font-weight: var(--w-semibold);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* pending guest requests, oldest first */
+.dual-requests {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* one request: a raised card ringed in the visitor wash (the guest is the visitor), the two answers under the guest line */
+.request {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow:
+    var(--elev-2),
+    0 0 0 3px var(--pt-wash);
+}
+.request__who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.request__who .flag {
+  width: var(--flag-key-w);
+  height: var(--flag-key-h);
+}
+.request__num {
+  font-size: var(--fs-key);
+  font-weight: var(--w-bold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--track-tight);
+  white-space: nowrap;
+}
+.request__lang {
+  margin-left: auto;
+  font-size: var(--fs-ui);
+  font-weight: var(--w-semibold);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.request__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+}
+
+/* guest entry: the instruction in the guest's language; the booth PIN sits inside it as the loudest object on the screen */
+.dual-instruction {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-cta);
+  font-weight: var(--w-bold);
+  letter-spacing: var(--track-tight);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.dual-instruction__pin {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0 var(--sp-1);
+  padding: 2px calc(var(--sp-3) - 0.2em) 2px var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--elev-1);
+  font-size: var(--fs-title);
+  font-weight: var(--w-bold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2em;
+  line-height: 1.2;
+}
+/* guest entry: booth presence under the title, a status dot with its label; "not ready" in full ink */
+.dual-presence {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin: var(--sp-3) 0 0;
+  color: var(--ink-2);
+  font-size: var(--fs-ui);
+  font-weight: var(--w-semibold);
+}
+.dual-presence--off {
+  color: var(--ink);
+  font-weight: var(--w-bold);
+}
+
+/* guest waiting: centered column, the pending dots at status-dot size */
+.dual-wait {
+  align-items: center;
+  text-align: center;
+}
+.dual-wait .pending {
+  color: var(--ink-3);
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-4);
+}
+.dual-wait .pending i {
+  width: var(--dot);
+  height: var(--dot);
+}
+
+/* settings sheet: new booth PIN, a short numeric input and the change button in one row */
+.booth-pin__row {
+  display: flex;
+  gap: var(--sp-2);
+}
+.booth-pin__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 var(--sp-3);
+  border: var(--bw) solid var(--hair-2);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--fs-key);
+  font-weight: var(--w-semibold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.25em;
+  text-align: center;
+}
+.booth-pin__input:focus {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent);
+}

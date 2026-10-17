@@ -1,0 +1,23 @@
+{
+  "$comment": "제품/업계 용어집. 각 항목에 ko/en/ja/zh 를 채운다. 빈 문자열은 무시된다.",
+  "terms": [
+    {
+      "ko": "대구경 관측망원경",
+      "en": "large-aperture observation telescope",
+      "ja": "大口径観測望遠鏡",
+      "zh": "大口径观测望远镜"
+    },
+    {
+      "ko": "적도의 마운트",
+      "en": "equatorial mount",
+      "ja": "赤道儀マウント",
+      "zh": "赤道仪支架"
+    },
+    {
+      "ko": "초점거리",
+      "en": "focal length",
+      "ja": "焦点距離",
+      "zh": "焦距"
+    }
+  ]
+}
