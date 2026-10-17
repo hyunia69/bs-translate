@@ -59,7 +59,7 @@ npm run build   # 웹앱을 web/dist로 빌드
 npm run dev     # wrangler dev: Worker + Durable Object + 웹앱을 http://localhost:8790 에서 제공
 ```
 
-`wrangler dev`는 Cloudflare와 같은 런타임(workerd)을 로컬에서 돌립니다. 듀얼 모드의 게스트 PIN은 로컬 Durable Object 저장소(`.wrangler/state`)에 남습니다. 상태 확인은 `http://localhost:8790/health`입니다.
+`wrangler dev`는 Cloudflare와 같은 런타임(workerd)을 로컬에서 돌립니다. 기본은 localhost에서만 열리므로, 같은 와이파이의 폰에서 열려면 `npx wrangler dev --ip 0.0.0.0`으로 띄우세요(HTTP라서 마이크는 HTTPS 예외를 켠 폰에서만 동작). 듀얼 모드의 게스트 PIN은 로컬 Durable Object 저장소(`.wrangler/state`)에 남습니다. 상태 확인은 `http://localhost:8790/health`입니다.
 
 웹 화면을 고치면서 바로 보고 싶으면 터미널을 하나 더 열어 `npm run dev -w web`(Vite, 기본 http://localhost:5173)을 띄웁니다. Vite가 `/api`와 `/health`를 `http://localhost:8790`으로 넘겨 줍니다.
 
@@ -103,6 +103,15 @@ GitHub 저장소를 Cloudflare **Workers Builds**에 연결하면, `main`에 푸
 4. Durable Object(듀얼 모드 허브)는 `wrangler.jsonc`의 설정과 마이그레이션으로 첫 배포 때 자동으로 만들어집니다. 따로 만들 것은 없습니다.
 5. 배포 주소 `https://bs-translate.<계정>.workers.dev`를 엽니다. 도메인을 쓰려면 Worker 설정 -> **Domains & Routes**에서 Custom Domain을 추가하세요.
 6. 게스트용 QR 코드는 `https://<배포 주소>/guest`로 만듭니다.
+
+현재 배포 주소는 `https://bs-translate.hyunia69.workers.dev`입니다. 저장소 루트의 QR 코드:
+
+| 파일 | 가리키는 주소 | 용도 |
+|---|---|---|
+| `qr-bs-translate-guest.png` / `.svg` | `https://bs-translate.hyunia69.workers.dev/guest` | 부스에 붙이는 게스트용 |
+| `qr-bs-translate.png` / `.svg` | `https://bs-translate.hyunia69.workers.dev/` | 마스터(부스 담당자) 폰용 |
+
+배포된 서비스는 이 맥이나 로컬 서버와 무관하게 동작합니다. 로컬 `wrangler dev`와 배포 서버는 듀얼 상태와 게스트 PIN을 서로 공유하지 않으므로, 마스터와 게스트는 같은 주소로 들어와야 합니다.
 
 확인:
 - `https://<배포 주소>/health`가 `{"ok":true,"openaiConfigured":true}`이면 비밀값까지 정상입니다.
