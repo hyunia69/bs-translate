@@ -8,14 +8,14 @@ Booth flow. The **master** is the booth phone: a normal APP_PIN user whose `Sett
 4. On accept, both phones are paired. Each phone runs its own engine in ONE direction (my language -> partner's language) and relays its utterances as text to the other phone (no audio in dual mode).
 5. The master ends the session. The guest is disconnected, its engine stops, and the server refuses further engine sessions for that guest. The guest returns to the entry screen with an "ended" notice. The master returns to waiting.
 
-The booth PIN is 4 digits. The master changes it any time in settings. It is persisted in `DATA_DIR/booth.json`; if that file is missing, a random PIN is created and saved on first start. Guests see the current PIN, so the PIN is a confirmation code; the master's acceptance is the real gate.
+The booth PIN is 4 digits. The master changes it any time in settings. It is persisted in the Durable Object's storage; if none is stored yet, a random PIN is created and saved on first use. Guests see the current PIN, so the PIN is a confirmation code; the master's acceptance is the real gate.
 
 Shared TypeScript types: `web/src/types.ts` (`DualRole`, `DualPeer`, `DualPhase`, `DualState`, `DualWireMessage`). UI props: `web/src/ui/dualProps.ts`.
 
-## Server (`server/src/dual.ts` hub + `server/src/routes/dual.ts`)
+## Server (Cloudflare Worker `worker/src/` + one Durable Object holding the hub)
 
 In-memory state:
-- `boothPin`, loaded from and saved to `booth.json`.
+- `boothPin`, loaded from and saved to Durable Object storage.
 - At most ONE master: `{ token, lang, stream, graceTimer, partnerId }`.
 - Guests: `Map<guestId, { id: 3-digit string unique among current guests, token, lang, status: "pending" | "paired", stream, graceTimer, createdAt }>`.
 
@@ -23,12 +23,12 @@ Request rules:
 - Tokens are 32 hex chars.
 - All bodies are JSON.
 - An unknown token returns `404 {"error":"unknown_token"}`. Bad input returns `400 {"error":"invalid_request"}`.
-- APP_PIN is checked with `pinMatches` from `server/src/pin.ts`.
+- APP_PIN (Worker secret) is checked with a constant-time compare.
 
 | Route | Auth | Body | Result |
 |---|---|---|---|
 | `GET /api/dual/booth` | none | - | `{boothPin, masterOnline, masterLang, busy}`. `busy` = master is paired. |
-| `POST /api/dual/booth-pin` | APP_PIN (`pin`) | `{pin, boothPin}` | `boothPin` must match `^\d{4}$`. Saves it to `booth.json`. The master stream gets `booth_pin`. Returns `200 {"boothPin"}`. |
+| `POST /api/dual/booth-pin` | APP_PIN (`pin`) | `{pin, boothPin}` | `boothPin` must match `^\d{4}$`. Saves it to Durable Object storage. The master stream gets `booth_pin`. Returns `200 {"boothPin"}`. |
 | `POST /api/dual/master/join` | APP_PIN, rate-limited like `/api/auth` | `{pin, lang}` | Becomes the master. If a master already exists, the old master's stream gets `{type:"replaced"}` and is ended, and its paired guest (if any) is ended with reason `master_left`; pending guests stay pending. Returns `200 {token, boothPin}`. |
 | `POST /api/dual/guest/request` | none, rate-limited like `/api/auth` | `{boothPin, lang}` | Errors are checked in this order: `lang` invalid -> 400; no master -> `409 {"error":"master_offline"}`; wrong PIN -> `403 {"error":"wrong_pin"}`; `lang` equal to the master's -> `409 {"error":"same_lang"}`. On success, creates a pending guest; the master gets `requests`. Returns `200 {token, guestId}`. |
 | `GET /api/dual/events?token=` | token | - | SSE stream for master or guest (`content-type: text/event-stream`, `cache-control: no-cache`, `x-accel-buffering: no`). The first event is `state`. A `: ping` comment every 15 s. A second stream for the same token replaces the first. |
@@ -39,7 +39,7 @@ Request rules:
 
 Grace: when a stream closes, the member is kept for 20 s. If it does not reconnect in time, it is removed exactly as `leave`. A member that never opened a stream is removed 20 s after it was created.
 
-### Engine authorization for guests (`server/src/routes/live.ts`, `server/src/routes/session.ts`)
+### Engine authorization for guests (`/api/live/session`, `/api/session`)
 
 `POST /api/live/session` and `POST /api/session` still accept APP_PIN in the `pin` field. If `pin` is NOT the APP_PIN, the server treats it as a guest token. It is accepted only when ALL of these hold:
 - the guest exists;
@@ -47,7 +47,7 @@ Grace: when a stream closes, the member is kept for 20 s. If it does not reconne
 - `source === guest.lang`;
 - `target === master.lang`.
 
-Anything else is `401 {"error":"invalid_pin"}`, the same response as today, so a guest whose session was ended can no longer open engine sessions. `/api/log`, `/api/transcripts`, and `/api/config` stay APP_PIN only.
+Anything else is `401 {"error":"invalid_pin"}`, the same response as today, so a guest whose session was ended can no longer open engine sessions. `/api/config` stays APP_PIN only.
 
 ### SSE events (`data: <json>\n\n`; dispatch on `type`)
 
@@ -95,5 +95,4 @@ To a guest:
 - **Booth PIN change.** Settings sheet (master role only): shows the current booth PIN with a 4-digit input and a change button. POST `booth-pin` with APP_PIN. Shows the guest URL (`location.origin + "/guest"`).
 - **Relay.** Each change of my dual message is POSTed as `DualWireMessage`: throttled to 200 ms per message, flushed immediately on done/error. Incoming `message` events are upserted with speaker `"partner"`.
 - **No audio** is played in dual mode.
-- **Latency logs and transcripts** are posted only when an APP_PIN exists (master), never for guests.
 - **pagehide:** `navigator.sendBeacon('/api/dual/leave')` when a token exists.

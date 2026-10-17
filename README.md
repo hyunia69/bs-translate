@@ -14,93 +14,60 @@
 ```
 [안드로이드 크롬] --(WebRTC, 음성/자막)--> api.openai.com (기본 GPT-Live-1, 선택 gpt-realtime-translate)
         |
-        +--(HTTPS, PIN + 세션 요청)--> [Node 서버 server/]  --(API 키)--> api.openai.com
+        +--(HTTPS, PIN + 세션 요청)--> [Cloudflare Worker worker/ + Durable Object]  --(API 키)--> api.openai.com
 ```
 
 - 음성은 폰 브라우저와 OpenAI 사이를 WebRTC로 직접 오갑니다. 서버를 거치지 않습니다.
-- 서버(`server/`, Fastify)는 PIN을 확인한 뒤 OpenAI 세션을 대신 열어 줍니다(GPT-Live-1은 SDP 중계 `/api/live/session`, gpt-realtime-translate는 수명이 짧은 client secret `ek_...` 발급 `/api/session`). 그 밖에 빌드된 웹앱(`web/dist`) 제공, 지연 로그와 (선택) 대화 기록 저장을 맡습니다.
-- 듀얼 모드(9절, 마스터/게스트)에서는 서버가 두 폰 사이의 번역 텍스트도 SSE(`/api/dual/events`)로 전달하고, 게스트 PIN과 접속 요청/수락을 중계합니다. 게스트는 연결된 동안에만 서버가 발급한 토큰으로 엔진 세션을 열 수 있습니다. 음성은 이때도 서버를 거치지 않습니다.
-- OpenAI API 키는 서버의 `.env`에만 있습니다. 웹 코드와 빌드 결과물에는 들어가지 않습니다.
+- 서버는 Cloudflare Worker(`worker/`)입니다. PIN을 확인한 뒤 OpenAI 세션을 대신 열어 줍니다.
+  - GPT-Live-1: SDP를 중계합니다(`/api/live/session`).
+  - gpt-realtime-translate: 수명이 짧은 client secret `ek_...`를 발급합니다(`/api/session`).
+- 빌드된 웹앱(`web/dist`)은 Workers 정적 자산으로 같은 주소에서 제공됩니다.
+- 듀얼 모드(9절, 마스터/게스트)의 상태는 **Durable Object 하나**가 맡습니다. 이 객체가 두 폰 사이의 번역 텍스트를 SSE(`/api/dual/events`)로 전달하고, 게스트 PIN 보관과 접속 요청/수락도 처리합니다. 게스트는 연결된 동안에만 서버가 발급한 토큰으로 엔진 세션을 열 수 있습니다. 음성은 이때도 서버를 거치지 않습니다.
+- OpenAI API 키와 `APP_PIN`은 Cloudflare의 비밀값(Secrets)에만 있습니다. 웹 코드와 빌드 결과물에는 들어가지 않습니다.
+- 로그와 대화 기록은 파일로 저장하지 않습니다. 오류와 OpenAI 세션 생성만 Cloudflare 대시보드의 **Workers Logs**(콘솔 로그)에 남습니다. 과금 확인용입니다.
 - API 조사 내용과 근거는 [docs/api-notes.md](docs/api-notes.md)에 있습니다.
 
 ## 2. 요구사항
 
-- Node.js 22 이상 (24에서 테스트함), npm
+- Node.js 22 이상, npm
+- Cloudflare 계정 (Workers, Durable Objects 사용)
 - OpenAI API 키
-- 폰에서 마이크를 쓰려면 **HTTPS가 필수**입니다. 크롬은 `https://` 또는 `localhost`가 아닌 주소에서는 마이크를 허용하지 않습니다. 실사용은 6절의 HTTPS 배포를 따르세요.
+- 폰에서 마이크를 쓰려면 **HTTPS가 필수**입니다. Cloudflare에 배포하면 `https://<이름>.<계정>.workers.dev` 또는 연결한 도메인으로 HTTPS가 자동으로 붙습니다.
 
-## 3. 설치
+## 3. 설치 (로컬 개발용)
 
 저장소 루트에서 실행합니다.
 
 ```bash
 npm install
+cp .dev.vars.example .dev.vars
 ```
 
-`.env` 파일을 만듭니다.
+`.dev.vars`를 열어 두 값을 채웁니다. 이 파일은 로컬 `wrangler dev` 전용이며 커밋하지 않습니다(`.gitignore`에 들어 있음).
 
-macOS / Linux:
+| 변수 | 의미 |
+|---|---|
+| `OPENAI_API_KEY` | OpenAI API 키. Worker에서만 씁니다. 비어 있으면 실제 번역은 안 되고 503이 돌아옵니다(모의 모드는 동작). |
+| `APP_PIN` | 마스터(앱) 입장 PIN, 숫자 4~6자리. 비어 있거나 형식이 틀리면 API가 503 `server_not_configured`를 돌려줍니다. |
 
-```bash
-cp .env.example .env
-```
-
-Windows (명령 프롬프트 또는 PowerShell):
-
-```bat
-copy .env.example .env
-```
-
-그다음 `.env`를 열어 `OPENAI_API_KEY`와 `APP_PIN`을 직접 채웁니다. 나머지는 기본값으로 둬도 됩니다.
-
-| 변수 | 기본값 | 의미 |
-|---|---|---|
-| `OPENAI_API_KEY` | (비어 있음) | OpenAI API 키. 서버에서만 씁니다. 비어 있으면 서버는 켜지지만 `/api/session`이 503을 돌려주므로 실제 번역은 안 됩니다(모의 모드는 동작). |
-| `APP_PIN` | (비어 있음) | 앱 입장 PIN, 숫자 4~6자리. 비어 있거나 형식이 틀리면 서버가 시작되지 않습니다. |
-| `PORT` | `8787` | 서버 HTTP 포트. API와 빌드된 웹앱을 함께 제공합니다. |
-| `HOST` | `0.0.0.0` | 바인드 주소. 같은 PC에 리버스 프록시가 있으면 `127.0.0.1`로 두세요. |
-| `CLIENT_SECRET_TTL_SECONDS` | `600` | 폰에 발급하는 단기 토큰의 수명(초). 10~7200 사이로 맞춰집니다. |
-| `SESSION_RATE_LIMIT_PER_MIN` | `30` | IP당 분당 PIN 확인 / 토큰 요청 한도. 넘으면 429. |
-| `SAVE_TRANSCRIPTS` | `false` | `true`면 대화 기록을 서버에 저장하고 설정 화면에 CSV 다운로드 링크가 생깁니다. |
-| `DATA_DIR` | `./data` | 지연 로그(`latency.jsonl`)와 대화 기록(`transcripts.jsonl`)을 쓰는 폴더. 저장소 루트 기준 경로입니다. |
-
-서버는 `.env.local`도 읽고, 같은 변수가 양쪽에 있으면 `.env.local` 값을 씁니다. `.env.local`에서는 API 키 변수 이름을 `chatgptkey`로 써도 됩니다(`OPENAI_API_KEY`가 있으면 그쪽이 우선). `npm run check:secrets`는 두 파일의 키 값이 빌드 결과물에 없는지 모두 검사합니다.
-
-`.env`와 `.env.local`은 커밋하지 마세요.
+`wrangler.jsonc`의 `vars.CLIENT_SECRET_TTL_SECONDS`(기본 600초, 10~7200)는 gpt-realtime-translate용 단기 토큰의 수명입니다.
 
 ## 4. 로컬 실행
 
-### 개발 모드
-
-터미널 두 개를 엽니다.
-
 ```bash
-# 터미널 1: API 서버 (http://localhost:8787)
-npm run dev:server
+npm run build   # 웹앱을 web/dist로 빌드
+npm run dev     # wrangler dev: Worker + Durable Object + 웹앱을 http://localhost:8790 에서 제공
 ```
 
-```bash
-# 터미널 2: 웹 개발 서버 (Vite, 기본 http://localhost:5173)
-npm run dev:web
-```
+`wrangler dev`는 Cloudflare와 같은 런타임(workerd)을 로컬에서 돌립니다. 듀얼 모드의 게스트 PIN은 로컬 Durable Object 저장소(`.wrangler/state`)에 남습니다. 상태 확인은 `http://localhost:8790/health`입니다.
 
-Vite가 `/api`와 `/health` 요청을 `http://localhost:8787`로 넘겨 줍니다. PC 브라우저에서 `http://localhost:5173`을 열면 됩니다. 크롬 개발자 도구의 기기 툴바로 폰 화면 크기를 맞추면 보기 편합니다.
-
-### 운영 모드
-
-```bash
-npm run build
-npm start
-```
-
-`npm run build`가 웹앱(`web/dist`)과 서버(`server/dist`)를 빌드하고, `npm start`가 서버 하나로 API와 웹앱을 `PORT`(기본 8787)에서 제공합니다. 서버는 시작할 때 `web/dist`가 있어야 웹앱을 제공하므로 빌드 후에 시작하세요. 상태 확인은 `http://localhost:8787/health`입니다.
+웹 화면을 고치면서 바로 보고 싶으면 터미널을 하나 더 열어 `npm run dev -w web`(Vite, 기본 http://localhost:5173)을 띄웁니다. Vite가 `/api`와 `/health`를 `http://localhost:8790`으로 넘겨 줍니다.
 
 ### 모의 모드와 데모 화면
 
-- **모의 모드** `?mock=1`: OpenAI에 연결하지 않고 가짜 번역 엔진으로 동작합니다. API 키 없이 UI와 녹음/재생 흐름을 시험할 때 씁니다. 서버는 켜 있어야 하고 PIN 입력도 필요합니다. 화면에 `MOCK` 표시가 붙습니다. `번역 시작하기`/`번역 중지`도 실제와 같이 동작하며, 시작 전에는 가짜 엔진도 만들지 않습니다.
-  예: `http://localhost:5173/?mock=1`
+- **모의 모드** `?mock=1`: OpenAI에 연결하지 않고 가짜 번역 엔진으로 동작합니다. API 키 없이 UI와 녹음/재생 흐름을 시험할 때 씁니다. 서버는 켜 있어야 하고 PIN 입력도 필요합니다(게스트 화면 `/guest?mock=1`은 PIN 없이). 화면에 `MOCK` 표시가 붙습니다.
+  예: `http://localhost:8790/?mock=1`
 - **데모 화면** `?demo=1`: 샘플 대화로 모든 화면 상태를 보여 주는 디자인 확인용 페이지입니다. 오른쪽 끝의 `DEMO` 손잡이로 모드, 언어, 테마, 배너 등을 바꿀 수 있습니다. 데모 PIN은 `1234`입니다.
-  예: `http://localhost:5173/?demo=1`
 
 ## 5. 빌드 보안 점검
 
@@ -111,72 +78,44 @@ npm run build
 npm run check:secrets
 ```
 
-`check-secrets: OK (N files scanned)`가 나와야 합니다. `FAIL`이 나오면 배포하지 말고 표시된 파일을 확인하세요. 이 점검은 `web/dist` 전체에서 `.env`의 키 값, `sk-...` 형태의 문자열, `OPENAI_API_KEY`라는 글자를 찾습니다.
+`check-secrets: OK (N files scanned)`가 나와야 합니다. 이 점검은 `web/dist` 전체에서 `.dev.vars`(또는 `.env.local`)의 키 값, `sk-...` 형태의 문자열, `OPENAI_API_KEY`라는 글자를 찾습니다.
 
-## 6. HTTPS 배포
+## 6. Cloudflare 배포 (GitHub 연동)
 
-Node 서버 앞에 리버스 프록시를 두고 HTTPS를 붙입니다. 서버 PC에서 `npm run build && npm start`로 서버를 띄운 상태를 전제로 합니다. 도메인의 DNS가 서버 PC의 공인 IP를 가리키고, 80/443 포트가 열려 있어야 인증서 발급이 됩니다.
+GitHub 저장소를 Cloudflare **Workers Builds**에 연결하면, `main`에 푸시할 때마다 자동으로 빌드하고 배포합니다.
 
-### Caddy (Let's Encrypt 자동)
+1. Cloudflare 대시보드 -> **Workers & Pages** -> **Create** -> **Import a repository**(Git 연결)에서 GitHub의 `hyunia69/bs-translate`를 고릅니다.
+2. 빌드 설정:
 
-`Caddyfile`:
+   | 항목 | 값 |
+   |---|---|
+   | Project name | `bs-translate` (`wrangler.jsonc`의 `name`과 같아야 함) |
+   | Production branch | `main` |
+   | Root directory | `/` (저장소 루트) |
+   | Build command | `npm run build` |
+   | Deploy command | `npx wrangler deploy` |
 
-```
-interpreter.example.com {
-    reverse_proxy 127.0.0.1:8787
-}
-```
+3. 첫 배포가 끝나면 Worker 설정 -> **Variables and Secrets**에서 두 비밀값을 **Secret** 형식으로 추가합니다.
+   - `OPENAI_API_KEY`
+   - `APP_PIN` (4~6자리 숫자)
 
-```bash
-caddy run --config Caddyfile
-```
+   터미널에서는 `npx wrangler secret put OPENAI_API_KEY`, `npx wrangler secret put APP_PIN`으로도 넣을 수 있습니다. 비밀값은 저장 즉시 적용되며 다시 배포할 필요가 없습니다.
+4. Durable Object(듀얼 모드 허브)는 `wrangler.jsonc`의 설정과 마이그레이션으로 첫 배포 때 자동으로 만들어집니다. 따로 만들 것은 없습니다.
+5. 배포 주소 `https://bs-translate.<계정>.workers.dev`를 엽니다. 도메인을 쓰려면 Worker 설정 -> **Domains & Routes**에서 Custom Domain을 추가하세요.
+6. 게스트용 QR 코드는 `https://<배포 주소>/guest`로 만듭니다.
 
-Caddy가 인증서 발급과 갱신을 알아서 합니다. `X-Forwarded-For`/`X-Forwarded-Proto` 헤더도 자동으로 붙입니다.
-
-### nginx (certbot 인증서)
-
-먼저 certbot으로 인증서를 받습니다(예: `sudo certbot certonly --nginx -d interpreter.example.com`). 그다음 server 블록을 추가합니다.
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name interpreter.example.com;
-
-    ssl_certificate     /etc/letsencrypt/live/interpreter.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/interpreter.example.com/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:8787;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-
-server {
-    listen 80;
-    server_name interpreter.example.com;
-    return 301 https://$host$request_uri;
-}
-```
-
-서버는 프록시 헤더를 믿도록 설정되어 있어서 PIN/토큰 요청 한도가 실제 폰 IP 기준으로 걸립니다.
-
-### Windows 서버에서 운영할 때
-
-- Node로 직접 실행합니다: 저장소 루트에서 `npm run build` 후 `npm start`.
-- 재부팅이나 오류 뒤에도 계속 돌게 하려면 서비스 도구를 씁니다. 예: NSSM으로 `npm start`(또는 `node server\dist\index.js`, 작업 폴더는 저장소 루트)를 Windows 서비스로 등록하거나, pm2를 씁니다. 둘 중 편한 것을 고르세요.
-- 프록시(Caddy 또는 nginx)를 같은 PC에서 돌리면 `.env`에 `HOST=127.0.0.1`을 넣어 8787 포트가 외부에 직접 노출되지 않게 합니다.
-- Windows 방화벽에서 인바운드 TCP 443(인증서 발급용으로 80도)을 엽니다. 8787은 열 필요가 없습니다.
+확인:
+- `https://<배포 주소>/health`가 `{"ok":true,"openaiConfigured":true}`이면 비밀값까지 정상입니다.
+- 오류와 OpenAI 세션 생성 기록은 Worker -> **Logs**(Workers Logs)에서 봅니다.
 
 ### 부스 네트워크 조건
 
-음성은 폰이 `api.openai.com`과 직접 주고받습니다. 그래서 **폰이 붙는 부스 Wi-Fi(또는 모바일 데이터)에서 `api.openai.com`으로 나가는 HTTPS와 WebRTC(UDP)가 막혀 있지 않아야** 합니다. 서버 쪽은 폰에서 오는 HTTPS만 받으면 됩니다. 전시장 Wi-Fi가 UDP를 막는 경우가 있으니 행사 전에 현장 망에서 꼭 시험하세요. 안 되면 폰의 모바일 데이터나 테더링을 쓰세요.
+음성은 폰이 `api.openai.com`과 직접 주고받습니다. 그래서 **폰이 붙는 부스 Wi-Fi(또는 모바일 데이터)에서 `api.openai.com`으로 나가는 HTTPS와 WebRTC(UDP)가 막혀 있지 않아야** 합니다. 전시장 Wi-Fi가 UDP를 막는 경우가 있으니 행사 전에 현장 망에서 꼭 시험하세요. 안 되면 폰의 모바일 데이터나 테더링을 쓰세요.
 
 ## 7. 안드로이드 폰 접속
 
 1. 크롬에서 `https://<도메인>`을 엽니다.
-2. PIN(`.env`의 `APP_PIN`)을 입력하고 `입장`을 누릅니다.
+2. PIN(Cloudflare 비밀값 `APP_PIN`)을 입력하고 `입장`을 누릅니다.
 3. 방문객이 오면 `번역 시작하기`를 누릅니다. 머리글의 점이 초록이 되면 말하기 버튼을 쓸 수 있습니다.
 4. 처음 말하기 버튼을 누를 때 마이크 권한을 묻습니다. **허용**을 누릅니다.
 5. 크롬 메뉴(⋮) -> `홈 화면에 추가` 또는 `앱 설치`를 누릅니다. 홈 화면 아이콘으로 열면 주소창 없이 세로 전체 화면으로 뜹니다.
@@ -194,38 +133,17 @@ server {
 2. 폰을 USB로 PC에 연결하고 폰에 뜨는 디버깅 허용 창을 승인합니다.
 3. PC 크롬에서 `chrome://inspect`를 열면 폰의 탭이 보입니다. `inspect`를 누르면 콘솔과 네트워크를 볼 수 있습니다.
 
-### 같은 네트워크(LAN)에서 시험할 때
+### 로컬 서버로 폰에서 시험할 때
 
-폰에서 `http://192.168.x.x:5173`처럼 HTTP로 열면 HTTPS가 아니어서 마이크가 동작하지 않습니다. 방법은 셋입니다.
+폰에서 `http://192.168.x.x:8790`처럼 HTTP로 열면 HTTPS가 아니어서 마이크가 동작하지 않습니다. 방법은 둘입니다.
 
-- 배포한 HTTPS 도메인으로 시험합니다(가장 확실함).
-- HTTPS 터널(예: Cloudflare Tunnel, ngrok)로 PC의 8787 포트를 임시 HTTPS 주소로 엽니다.
-- USB 디버깅이 연결된 상태라면 `chrome://inspect`의 `Port forwarding`에 `8787` -> `localhost:8787`을 추가한 뒤, 폰 크롬에서 `http://localhost:8787`을 엽니다. `localhost`는 크롬이 안전한 주소로 취급하므로 마이크가 동작합니다(운영 모드 `npm start` 기준).
+- 배포한 Cloudflare 주소(HTTPS)로 시험합니다(가장 확실함).
+- USB 디버깅이 연결된 상태라면 `chrome://inspect`의 `Port forwarding`에 `8790` -> `localhost:8790`을 추가한 뒤, 폰 크롬에서 `http://localhost:8790`을 엽니다. `localhost`는 크롬이 안전한 주소로 취급하므로 마이크가 동작합니다.
 
 ### "누르지 않은 동안 음성을 보내지 않는지" 확인
 
 - 폰 크롬 또는 원격 디버깅 중인 PC 크롬에서 `chrome://webrtc-internals`를 엽니다. 해당 연결의 `outbound-rtp` (audio) 항목에서 `bytesSent` 그래프를 봅니다. 버튼을 누른 구간에만 오르고, 턴과 턴 사이에는 평평해야 정상입니다.
 - 원격 디버깅 콘솔에서 턴을 시작할 때마다 `[engine] pre-turn audio bytesSent=0` 줄이 찍힙니다. 녹음 전에 보낸 음성이 0바이트라는 뜻입니다.
-
-### 지연 로그 읽기
-
-- 앱: 설정 -> `지연 로그 (최근 순)`에 최근 턴들이 표시됩니다(최대 100개). 값이 없으면 `-`로 나옵니다.
-- 서버: 턴마다 `DATA_DIR/latency.jsonl`(기본 `./data/latency.jsonl`)에 한 줄씩 쌓이고, 서버 로그에도 `turn latency` 줄이 남습니다. 원격 디버깅 콘솔에는 `[latency]` 줄로 찍힙니다.
-
-| 필드 | 의미 |
-|---|---|
-| `turnId` | 턴 ID |
-| `engine` | 사용한 엔진 이름 (`mock`이면 모의 모드) |
-| `source` / `target` | 원문 언어 / 번역 언어 (`ko`, `en`, `ja`, `zh`) |
-| `recordMs` | 녹음 길이(ms) |
-| `stopToFirstAudioMs` | 중지 탭부터 번역 음성 첫 조각 수신까지(ms) |
-| `stopToPlaybackMs` | 중지 탭부터 실제 재생 시작까지(ms). 재생하지 않은 턴은 `null` |
-| `stopToEndMs` | 중지 탭부터 턴 종료까지(ms) |
-| `endReason` | `completed`(정상), `timeout`(10초 안에 끝나지 않음), `error` |
-| `audioBytesSent` | 이 턴 동안 실제로 보낸 음성 바이트 |
-| `at` | 턴 시작 시각(ISO) |
-
-체감 지연은 `stopToPlaybackMs`를 보면 됩니다.
 
 ## 9. 사용법
 
@@ -242,10 +160,9 @@ server {
   - 글자 크기: 3단계
   - 테마: 고대비 / 다크
   - 대화 기록 지우기: 확인 후 폰에 저장된 대화를 모두 지웁니다.
-  - CSV 다운로드: `SAVE_TRANSCRIPTS=true`일 때만 보입니다.
-  - 지연 로그: 8절 참고
+  - (듀얼 마스터일 때) 사용 모드, 게스트 PIN 변경
 
-대화 기록(텍스트만)은 폰 브라우저에 저장되어 앱을 다시 열어도 남아 있습니다. 번역 음성은 저장하지 않으므로 앱을 다시 열면 이전 말풍선은 다시 듣기가 안 됩니다.
+기본 모드의 대화 기록(텍스트만)은 그 폰의 브라우저에만 저장되어 앱을 다시 열어도 남아 있습니다. 서버에는 저장하지 않습니다. 번역 음성은 저장하지 않으므로 앱을 다시 열면 이전 말풍선은 다시 듣기가 안 됩니다.
 
 ### 듀얼 모드 (마스터 / 게스트)
 
@@ -258,7 +175,7 @@ server {
 3. 게스트가 요청하면 대기 화면에 `게스트 123 · English`처럼 요청이 뜹니다. `수락`을 누르면 연결되고 양쪽 폰이 통역 엔진에 자동으로 연결됩니다. `거절`하면 게스트 화면에 거절 안내가 뜹니다.
 4. 대화: 아래쪽 키 하나(`한국어 시작`)를 눌러 말하고 다시 눌러 끝냅니다. 번역은 게스트 폰에 글자로 뜹니다. 게스트가 말한 내용은 한국어 번역으로 내 화면에 뜹니다.
 5. **종료**: 머리글의 `종료`를 누르면 게스트 연결도 끊기고, 두 폰의 통역 엔진 연결이 모두 닫힙니다. 서버는 그 게스트가 엔진 세션을 새로 여는 것도 거부합니다. 마스터는 다시 대기 화면으로 돌아가 다음 게스트를 기다립니다.
-6. **게스트 PIN 변경**: 설정 -> `게스트 PIN`에 새 4자리를 넣고 `변경`을 누릅니다. 바꾸고 싶을 때만 바꾸면 되고, 서버의 `DATA_DIR/booth.json`에 저장되어 서버를 재시작해도 유지됩니다. 새로 접속하는 게스트에게는 바뀐 PIN이 보입니다.
+6. **게스트 PIN 변경**: 설정 -> `게스트 PIN`에 새 4자리를 넣고 `변경`을 누릅니다. 바꾸고 싶을 때만 바꾸면 되고, Cloudflare Durable Object 저장소에 저장되어 재배포해도 유지됩니다. 새로 접속하는 게스트에게는 바뀐 PIN이 보입니다.
 
 **게스트 (방문객)**
 
@@ -274,8 +191,8 @@ server {
 - 마스터가 다른 게스트와 통역 중일 때 들어온 요청은 대기 목록에 남았다가, 종료 후에 수락할 수 있습니다.
 - 페이지를 닫으면 연결은 곧바로 풀립니다. 네트워크가 끊긴 경우에는 약 20초 동안 다시 붙기를 기다린 뒤 풉니다. 마스터가 나가면 모든 게스트 연결과 요청이 종료됩니다.
 - 게스트 PIN은 게스트 화면에 그대로 보이는 확인용 숫자입니다. 실제 접속 허가는 마스터의 `수락`입니다.
-- 듀얼 상태(대기, 요청, 연결)는 서버 메모리에만 있으므로 서버를 재시작하면 다시 대기를 시작해야 합니다. 게스트 PIN만 파일로 유지됩니다.
-- 게스트는 `APP_PIN` 없이 들어오므로 지연 로그와 대화 기록은 마스터 쪽 턴만 남습니다.
+- 듀얼 상태(대기, 요청, 연결)는 Durable Object의 메모리에만 있으므로 재배포하거나 모두가 오래 접속을 끊으면 다시 대기를 시작해야 합니다. 게스트 PIN만 Durable Object 저장소에 유지됩니다.
+- 듀얼 대화 내용은 어디에도 저장하지 않습니다(서버는 중계만 함).
 - 게스트 폰의 마이크도 **HTTPS 주소**에서만 동작합니다(2절). QR 주소는 반드시 `https://`여야 합니다.
 
 **비용**: 연결되어 있는 동안 각 폰은 엔진 방향을 **하나만**(내 언어 -> 상대 언어) 열어 둡니다. GPT-Live-1 기준으로 폰 한 대에 분당 약 $0.05, 두 폰을 합치면 분당 약 $0.10입니다. 아무도 말하지 않아도 연결 시간만큼 과금되므로(10절) 대화가 끝나면 `종료`를 누르세요. 마스터 대기 중과 게스트 요청 중에는 엔진 연결이 없습니다. 과금 누수 조사 내용은 [docs/billing-notes.md](docs/billing-notes.md)에 있습니다.
@@ -303,16 +220,9 @@ server {
 
 그래서 앱은 연결을 `번역 시작하기`와 `번역 중지` 사이에만 유지합니다. 번역 중에는 **아무도 말하지 않아도** 방향 2개(한국어 -> 상대 언어, 상대 언어 -> 한국어)가 각각 과금되므로 번역 중 1분당 약 2 x $0.05 = $0.10입니다. 예를 들어 방문객 한 명과 5분씩 하루 20명을 상대하면 20 x 5분 x $0.10 = 약 $10이고, 중지 상태로 열어 둔 시간은 요금이 없습니다. 반대로 중지를 잊고 8시간 내내 번역 중으로 두면 2 x 480분 x $0.05 = $48이 됩니다. 대화가 끝나면 `번역 중지`를 누르는 습관이 비용을 결정합니다. 탭을 닫아도 연결은 닫히지만, 앱을 뒤로 돌려 둔 채 화면만 끄면 연결은 유지되니 꼭 중지를 누르세요.
 
-### 엔진 비교 방법 (지연 로그)
+### 엔진 비교 방법
 
-8절의 지연 로그에서 `engine` 필드로 엔진을 구분합니다. GPT-Live-1은 `gpt-live-1`, 다른 엔진은 `gpt-realtime-translate`로 남습니다. 같은 문장을 두 엔진으로 번갈아 말해 본 뒤 `DATA_DIR/latency.jsonl`(기본 `./data/latency.jsonl`)에서 엔진별 `stopToPlaybackMs`와 `endReason`을 비교하세요. 예:
-
-```bash
-grep '"engine":"gpt-live-1"' data/latency.jsonl
-grep '"engine":"gpt-realtime-translate"' data/latency.jsonl
-```
-
-Live는 턴 종료를 출력이 멈춘 시간으로 판단하므로 `stopToEndMs`가 gpt-realtime-translate보다 길게 나올 수 있습니다. 체감 지연은 `stopToPlaybackMs`로 비교하세요.
+같은 문장을 두 엔진으로 번갈아 말해 보고 체감 속도와 번역 품질을 비교하세요. 원격 디버깅 콘솔(8절)의 `[engine]` / `[engine:live]` 줄에서 턴 종료 사유와 오류를 볼 수 있습니다.
 
 ## 11. 용어집
 
@@ -341,13 +251,13 @@ Live는 턴 종료를 출력이 멈춘 시간으로 판단하므로 `stopToEndMs
 **"재연결 중" 배너나 노란 점이 계속 보여요**
 앱은 연결이 끊기면 1, 2, 4, 8, 15초 간격으로 다시 연결합니다. 계속되면 다음을 확인하세요.
 - 폰 인터넷 연결, 그리고 Wi-Fi가 `api.openai.com`으로 가는 UDP를 막지 않는지 (6절). 모바일 데이터로 바꿔 보세요.
-- 서버 로그의 `/api/live/session`(GPT-Live-1) 또는 `/api/session`(gpt-realtime-translate) 응답이 502면 OpenAI 쪽 오류(키 잘못됨, 잔액 부족 등)입니다. 로그의 `openai error` 줄에 원인이 나옵니다. 503이면 `.env`에 `OPENAI_API_KEY`가 비어 있습니다.
+- Cloudflare Workers Logs에서 `/api/live/session`(GPT-Live-1) 또는 `/api/session`(gpt-realtime-translate) 응답이 502면 OpenAI 쪽 오류(키 잘못됨, 잔액 부족 등)입니다. 로그의 upstream 오류 줄에 원인이 나옵니다. 503이면 비밀값 `OPENAI_API_KEY` 또는 `APP_PIN`이 비어 있거나 형식이 틀렸습니다.
 
 **PIN을 바꿨어요 / PIN 화면으로 돌아가고 싶어요**
-`.env`의 `APP_PIN`을 바꾸고 서버를 재시작하면, 이전 PIN을 기억하는 폰은 다음 접속 때 PIN 화면으로 돌아갑니다. 바로 초기화하려면 크롬에서 주소창 자물쇠 -> 사이트 설정 -> `데이터 삭제`(사이트 데이터 지우기)를 누르세요. 저장된 PIN, 설정, 대화 기록이 모두 지워집니다.
+Cloudflare 비밀값 `APP_PIN`을 바꾸면(즉시 적용), 이전 PIN을 기억하는 폰은 다음 접속 때 PIN 화면으로 돌아갑니다. 바로 초기화하려면 크롬에서 주소창 자물쇠 -> 사이트 설정 -> `데이터 삭제`(사이트 데이터 지우기)를 누르세요. 저장된 PIN, 설정, 대화 기록이 모두 지워집니다.
 
 **"잠시 후 다시 시도해 주세요" (429)**
-IP당 분당 요청 한도(`SESSION_RATE_LIMIT_PER_MIN`, 기본 30)를 넘었습니다. 1분 기다리면 풀립니다. 여러 폰이 같은 부스 Wi-Fi(같은 공인 IP)를 쓰면 한도에 금방 닿을 수 있으니 값을 올리고 서버를 재시작하세요.
+IP당 분당 요청 한도(약 30회)를 넘었습니다. 1분 기다리면 풀립니다. 여러 폰이 같은 부스 Wi-Fi(같은 공인 IP)를 쓰면 한도에 닿을 수 있습니다.
 
 ## 13. 알려진 제한 / 미확인 사항
 

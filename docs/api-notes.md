@@ -298,7 +298,7 @@
 
 ### 5.10 구현 결정
 
-구현 파일: 서버 `server/src/routes/live.ts`, `server/src/glossary.ts`, `server/src/openai.ts`(`buildLiveSessionBody`, `requestLiveSession`). 웹 `web/src/engine/liveSession.ts`, `web/src/engine/gptLive.ts`. 줄 번호는 내려받은 문서 사본 기준이다.
+구현 파일: Worker `worker/src/engine.ts`, `worker/src/glossary.ts`, `worker/src/openai.ts`(`buildLiveSessionBody`, `requestLiveSession`). 웹 `web/src/engine/liveSession.ts`, `web/src/engine/gptLive.ts`. 줄 번호는 내려받은 문서 사본 기준이다.
 
 1. **서버 SDP 중계.** Live 용 브라우저 토큰이 없으므로(5.1) 브라우저는 `POST /api/live/session` `{pin, source, target, sdp}` 만 보내고, 서버가 API 키로 `POST /v1/live/sessions` 를 호출해 `{sdp, sessionId}` 를 돌려준다. 브라우저는 `api.openai.com` 에 HTTP 요청을 보내지 않는다. 근거: [RTC] voice-webrtc.md:13 "exchanges it for an answer with `POST /v1/live/sessions`, using the project API key".
 2. **요청 본문.** `{ session: { model: "gpt-live-1", instructions }, transport: { type: "webrtc", sdp } }` 만 보낸다. 그 밖의 session 필드는 보내지 않는다. 근거: voice-webrtc.md:30 (`session` + `transport`), :79 (`model: "gpt-live-1"`), :80 (`instructions`), :93 (`transport`, `type: "webrtc"`). 응답은 `result.session.id`, `result.transport.sdp` 를 읽는다(voice-webrtc.md:368). SDP 본문 한도 64 KB 는 공식 예제의 `express.json({ limit: "64kb" })` 를 따랐다(voice-webrtc.md:55).
