@@ -3,15 +3,19 @@
   "private": true,
   "version": "0.1.0",
   "workspaces": [
-    "server",
-    "web"
+    "web",
+    "worker"
   ],
   "scripts": {
-    "dev:server": "npm run dev -w server",
+    "build": "npm run build -w web",
+    "dev": "wrangler dev",
     "dev:web": "npm run dev -w web",
-    "build": "npm run build -w web && npm run build -w server",
-    "start": "npm run start -w server",
-    "typecheck": "npm run typecheck -w server && npm run typecheck -w web",
+    "deploy": "wrangler deploy",
+    "typecheck": "npm run typecheck -w worker && npm run typecheck -w web",
     "check:secrets": "node scripts/check-secrets.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261016.1",
+    "wrangler": "^4.151.1"
   }
 }

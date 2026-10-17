@@ -1,10 +1,7 @@
-import { randomBytes, randomInt } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { pinMatches } from "./pin.js";
 
 // In-memory hub for dual mode v2: one master (booth phone) and guests (contract: docs/dual-protocol.md).
-// The only I/O is booth.json persistence and the stream interface.
+// The only I/O is the booth PIN persistence callback and the stream interface.
 
 export const DUAL_LANGS = ["ko", "en", "ja", "zh"] as const;
 export type DualLang = (typeof DUAL_LANGS)[number];
@@ -13,7 +10,6 @@ const STATUSES = ["recording", "translating", "done", "error"] as const;
 const GRACE_MS = 20_000;
 const MAX_TEXT = 4000;
 const MAX_GUEST_IDS = 1000;
-const BOOTH_FILE = "booth.json";
 const BOOTH_PIN_RE = /^\d{4}$/;
 
 export interface DualPeer {
@@ -39,7 +35,7 @@ export type GuestRequestResult =
   | { readonly kind: "ok"; readonly token: string; readonly guestId: string }
   | { readonly kind: "error"; readonly error: "master_offline" | "wrong_pin" | "same_lang" | "unavailable" };
 
-/** Minimal sink the hub writes SSE frames to; the route adapts a raw HTTP response to it. */
+/** Minimal sink the hub writes SSE frames to; the Durable Object adapts a streamed Response to it. */
 export interface DualStream {
   write(chunk: string): void;
   end(): void;
@@ -50,7 +46,7 @@ interface Member {
   readonly token: string;
   readonly lang: DualLang;
   stream: DualStream | null;
-  graceTimer: NodeJS.Timeout | null;
+  graceTimer: ReturnType<typeof setTimeout> | null;
 }
 interface Master extends Member {
   partnerId: string | null;
@@ -92,43 +88,31 @@ export function parseWireMessage(v: unknown): DualWireMessage | null {
   };
 }
 
-const newToken = (): string => randomBytes(16).toString("hex");
+const newToken = (): string =>
+  [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join("");
 
-async function saveBoothPin(dataDir: string, boothPin: string): Promise<void> {
-  await mkdir(dataDir, { recursive: true });
-  await writeFile(path.join(dataDir, BOOTH_FILE), JSON.stringify({ boothPin }) + "\n", "utf8");
+/** Uniform integer in [0, max) via rejection sampling over 32-bit random values. */
+export function randomInt(max: number): number {
+  const limit = Math.floor(0x1_0000_0000 / max) * max;
+  const buf = new Uint32Array(1);
+  for (;;) {
+    crypto.getRandomValues(buf);
+    const n = buf[0] ?? 0;
+    if (n < limit) return n % max;
+  }
 }
 
-/** Reads booth.json; when it is missing (or holds no valid PIN) a random PIN is created and saved. */
-async function loadBoothPin(dataDir: string): Promise<string> {
-  let stored: unknown = null;
-  try {
-    stored = JSON.parse(await readFile(path.join(dataDir, BOOTH_FILE), "utf8"));
-  } catch (err) {
-    const missing = err instanceof Error && "code" in err && err.code === "ENOENT";
-    if (!missing && !(err instanceof SyntaxError)) throw err;
-  }
-  if (stored && typeof stored === "object" && "boothPin" in stored && isBoothPin(stored.boothPin)) {
-    return stored.boothPin;
-  }
-  const boothPin = String(randomInt(0, 10_000)).padStart(4, "0");
-  await saveBoothPin(dataDir, boothPin);
-  return boothPin;
-}
+export const randomBoothPin = (): string => String(randomInt(10_000)).padStart(4, "0");
 
-export class DualHub {
+export class DualHubState {
   private master: Master | null = null;
   private readonly guests = new Map<string, Guest>();
 
-  private constructor(
-    private readonly dataDir: string,
+  constructor(
     private boothPin: string,
-    private readonly graceMs: number,
+    private readonly persistBoothPin: (boothPin: string) => Promise<void>,
+    private readonly graceMs = GRACE_MS,
   ) {}
-
-  static async load(dataDir: string, graceMs = GRACE_MS): Promise<DualHub> {
-    return new DualHub(dataDir, await loadBoothPin(dataDir), graceMs);
-  }
 
   booth() {
     const m = this.master;
@@ -140,7 +124,7 @@ export class DualHub {
   }
 
   async setBoothPin(boothPin: string): Promise<void> {
-    await saveBoothPin(this.dataDir, boothPin);
+    await this.persistBoothPin(boothPin);
     this.boothPin = boothPin;
     if (this.master) this.send(this.master, { type: "booth_pin", boothPin });
   }
@@ -168,7 +152,7 @@ export class DualHub {
     if (lang === m.lang) return { kind: "error", error: "same_lang" };
     if (this.guests.size >= MAX_GUEST_IDS) return { kind: "error", error: "unavailable" };
     let id = "";
-    do id = String(randomInt(0, 1000)).padStart(3, "0");
+    do id = String(randomInt(1000)).padStart(3, "0");
     while (this.guests.has(id));
     const g: Guest = { id, token: newToken(), lang, status: "pending", createdAt: Date.now(), stream: null, graceTimer: null };
     this.guests.set(id, g);
@@ -275,9 +259,14 @@ export class DualHub {
   leave(token: string): HubResult {
     const who = this.resolve(token);
     if (!who) return "unknown_token";
-    if (who.role === "master") this.leaveMaster(who.m);
-    else this.leaveGuest(who.g);
-    return "ok";
+    switch (who.role) {
+      case "master":
+        this.leaveMaster(who.m);
+        return "ok";
+      case "guest":
+        this.leaveGuest(who.g);
+        return "ok";
+    }
   }
 
   /** Engine authorization: the token is a paired guest speaking its own language toward the master's. */
@@ -285,18 +274,6 @@ export class DualHub {
     const g = this.findGuest(token);
     const m = this.master;
     return g !== undefined && g.status === "paired" && source === g.lang && m !== null && target === m.lang;
-  }
-
-  /** Drops every member and timer (shutdown / tests). */
-  close(): void {
-    const members: Member[] = [...this.guests.values()];
-    if (this.master) members.push(this.master);
-    for (const member of members) {
-      this.clearGrace(member);
-      this.closeStream(member);
-    }
-    this.master = null;
-    this.guests.clear();
   }
 
   private resolve(token: string): Resolved | null {
@@ -380,7 +357,6 @@ export class DualHub {
         if (g === member) this.leaveGuest(g);
       }
     }, this.graceMs);
-    member.graceTimer.unref();
   }
 
   private clearGrace(member: Member): void {

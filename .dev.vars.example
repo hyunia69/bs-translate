@@ -1,0 +1,5 @@
+# Local secrets for `wrangler dev` (copy to .dev.vars). In production set them with `wrangler secret put`.
+# OpenAI API key. Worker only. Never put it in web/ or commit it.
+OPENAI_API_KEY=
+# 4-6 digit PIN required before the Worker issues session tokens.
+APP_PIN=

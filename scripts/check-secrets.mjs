@@ -12,7 +12,7 @@ if (!existsSync(dist) || !statSync(dist).isDirectory()) {
 
 function readEnvKeys() {
   const keys = [];
-  for (const name of [".env.local", ".env"]) {
+  for (const name of [".dev.vars", ".env.local"]) {
     const envPath = path.join(root, name);
     if (!existsSync(envPath)) continue;
     for (const raw of readFileSync(envPath, "utf8").split(/\r?\n/)) {
@@ -42,7 +42,7 @@ for (const file of walk(dist)) {
   scanned++;
   const text = readFileSync(file).toString("latin1");
   const reasons = [];
-  if (keys.some((k) => text.includes(k))) reasons.push("contains the API key value from .env/.env.local");
+  if (keys.some((k) => text.includes(k))) reasons.push("contains the API key value from .dev.vars/.env.local");
   if (keyPattern.test(text)) reasons.push("matches sk-... key pattern");
   if (text.includes("OPENAI_API_KEY")) reasons.push('contains "OPENAI_API_KEY"');
   if (reasons.length) offenders.push(`${file}: ${reasons.join("; ")}`);
