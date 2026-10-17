@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { transcriptsCsvHref } from "./state/api";
 import {
   changeBoothPin,
   clearHistory,
@@ -208,9 +207,6 @@ function InterpreterApp() {
         guestUrl={settings.appMode === "dual" ? guestUrl : undefined}
         onBoothPinChange={settings.appMode === "dual" ? changeBoothPin : undefined}
         micDevices={s.micDevices}
-        latencyLogs={s.latencyLogs}
-        transcriptsEnabled={s.transcriptsEnabled}
-        csvHref={s.pin ? transcriptsCsvHref(s.pin) : undefined}
         onChange={updateSettings}
         onClearHistory={clearHistory}
         onClose={() => setSheetOpen(false)}

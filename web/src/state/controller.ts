@@ -20,10 +20,8 @@ import {
   type Settings,
   type Speaker,
   type TranslationEngine,
-  type TurnEndInfo,
-  type TurnLatencyLog,
 } from "../types";
-import { getConfig, postAuth, postLatencyLog, postTranscript } from "./api";
+import { getConfig, postAuth } from "./api";
 import {
   beaconDualLeave,
   getDualBooth,
@@ -45,7 +43,6 @@ import {
 import {
   INITIAL_DUAL,
   addDualMessage,
-  addLatencyLog,
   addMessage,
   setDual,
   updateMessage,
@@ -54,23 +51,10 @@ import {
   type AppState,
 } from "./store";
 
-const AUDIBLE_THRESHOLD = 0.004;
-const LOG_FALLBACK_MS = 3000;
 
 interface Turn {
-  id: string;
-  direction: Direction;
   /** Dual turns are text only: never played, relayed to the partner. */
   dual: boolean;
-  engineName: string;
-  startedAtIso: string;
-  startAt: number;
-  stopAt: number | null;
-  firstAudioAt: number | null;
-  playbackAt: number | null;
-  endAt: number | null;
-  endInfo: TurnEndInfo | null;
-  logTimer: ReturnType<typeof setTimeout> | null;
 }
 
 export const stats = { playbackStartsWhileRecording: 0, turns: 0, engineConfigures: 0, engineDisposes: 0 };
@@ -125,15 +109,6 @@ function engineDirections(): Direction[] | null {
   return [{ source: dual.myLang, target: dual.partner.lang }];
 }
 
-function maxAbs(pcm: Float32Array): number {
-  let m = 0;
-  for (let i = 0; i < pcm.length; i++) {
-    const v = Math.abs(pcm[i]);
-    if (v > m) m = v;
-  }
-  return m;
-}
-
 function showApiError(message: string): void {
   set({ alert: { kind: "api_error", message } });
 }
@@ -151,14 +126,11 @@ function makeCallbacks(gen: number): EngineCallbacks {
       if (!live()) return;
       const t = turns.get(id);
       const dual = t ? t.dual : get().dualMessages.some((m) => m.id === id);
-      // Dual mode plays no audio; the first sample is still timed for the latency log.
+      // Dual mode plays no audio.
       if (!dual) player.append(id, pcm, sampleRate);
-      if (t && t.stopAt !== null && t.firstAudioAt === null && maxAbs(pcm) > AUDIBLE_THRESHOLD) {
-        t.firstAudioAt = performance.now();
-      }
     },
-    onTurnEnd: (id, info) => {
-      if (live()) handleTurnEnd(id, info);
+    onTurnEnd: (id) => {
+      if (live()) handleTurnEnd(id);
     },
     onError: (err) => {
       if (live()) handleEngineError(err);
@@ -199,7 +171,7 @@ function syncEngine(): void {
   });
 }
 
-/** Closes every engine connection. Open turns are finalized; ended turns still get their latency log. */
+/** Closes every engine connection. Open turns are finalized. */
 function disposeEngine(): void {
   if (get().recordingTurnId) stopTurn();
   engineGen += 1;
@@ -210,13 +182,8 @@ function disposeEngine(): void {
   engine = null;
   engineId = null;
   configuredKey = "";
-  for (const t of Array.from(turns.values())) {
-    if (t.endAt === null) {
-      if (t.logTimer) clearTimeout(t.logTimer);
-      updateMessage(t.id, (m) => ({ ...m, status: m.targetText ? "done" : "error", hasAudio: player.hasAudio(t.id) }));
-    } else {
-      writeLatencyLog(t.id);
-    }
+  for (const id of turns.keys()) {
+    updateMessage(id, (m) => ({ ...m, status: m.targetText ? "done" : "error", hasAudio: player.hasAudio(id) }));
   }
   turns.clear();
   set({ status: "idle" });
@@ -332,20 +299,7 @@ async function startTurn(speaker: Speaker, dual = false): Promise<void> {
   starting = false;
 
   const startAt = performance.now();
-  turns.set(id, {
-    id,
-    direction,
-    dual,
-    engineName: eng.name,
-    startedAtIso: new Date().toISOString(),
-    startAt,
-    stopAt: null,
-    firstAudioAt: null,
-    playbackAt: null,
-    endAt: null,
-    endInfo: null,
-    logTimer: null,
-  });
+  turns.set(id, { dual });
   const message: Message = {
     id,
     speaker,
@@ -373,7 +327,6 @@ function stopTurn(): void {
   if (!id) return;
   vibrateStop();
   const t = turns.get(id);
-  if (t) t.stopAt = performance.now();
   // Recording state is cleared before engine.stop(): the engine may end the turn synchronously.
   clearRecordingUi();
   updateMessage(id, (m) => (m.status === "recording" ? { ...m, status: "translating" } : m));
@@ -386,75 +339,27 @@ function stopTurn(): void {
   engine?.stop();
 }
 
-function handleTurnEnd(id: string, info: TurnEndInfo): void {
-  const now = performance.now();
+function handleTurnEnd(id: string): void {
   if (get().recordingTurnId === id) clearRecordingUi();
-  const t = turns.get(id);
-  if (t) {
-    t.stopAt ??= now;
-    t.endAt = now;
-    t.endInfo = info;
-  }
+  const dual = turns.get(id)?.dual ?? false;
+  turns.delete(id);
   stats.turns += 1;
 
-  const dual = t?.dual ?? false;
   const hasAudio = !dual && player.hasAudio(id);
-  let finished: Message | undefined;
-  updateMessage(id, (m) => {
-    // A turn can end "completed" with no translation (observed live for ko->ja); show it as failed, not as a blank bubble.
-    finished = { ...m, status: m.targetText.trim() ? "done" : "error", hasAudio };
-    return finished;
-  });
+  // A turn can end "completed" with no translation (observed live for ko->ja); show it as failed, not as a blank bubble.
+  updateMessage(id, (m) => ({ ...m, status: m.targetText.trim() ? "done" : "error", hasAudio }));
 
   // If the stream started at stop is still on, let it finish; if it was interrupted (new turn, replay), do not restart it.
   if (!dual) player.endStream(id);
-
-  // Dual turns never play, so there is no playback start to wait for.
-  if (t?.playbackAt != null || dual) writeLatencyLog(id);
-  else if (t) t.logTimer = setTimeout(() => writeLatencyLog(id), LOG_FALLBACK_MS);
-
-  const { pin, transcriptsEnabled } = get();
-  if (finished && pin && transcriptsEnabled) postTranscript(pin, finished);
-}
-
-function writeLatencyLog(id: string): void {
-  const t = turns.get(id);
-  if (!t || t.endAt === null || t.stopAt === null || !t.endInfo) return;
-  turns.delete(id);
-  if (t.logTimer) clearTimeout(t.logTimer);
-  const since = (at: number | null) => (at === null ? null : Math.round(at - (t.stopAt as number)));
-  const log: TurnLatencyLog = {
-    turnId: t.id,
-    engine: t.engineName,
-    source: t.direction.source,
-    target: t.direction.target,
-    recordMs: Math.round(t.stopAt - t.startAt),
-    stopToFirstAudioMs: since(t.firstAudioAt),
-    stopToPlaybackMs: since(t.playbackAt),
-    stopToEndMs: since(t.endAt),
-    endReason: t.endInfo.reason,
-    audioBytesSent: t.endInfo.audioBytesSent ?? null,
-    at: t.startedAtIso,
-  };
-  addLatencyLog(log);
-  console.info("[latency]", log);
-  const pin = get().pin;
-  if (pin) postLatencyLog(pin, log);
 }
 
 function wirePlayer(): void {
-  player.on("playbackstart", (turnId, atMs) => {
+  player.on("playbackstart", (turnId) => {
     if (busyRecording()) {
       stats.playbackStartsWhileRecording += 1;
       console.error("[player] playback started while recording", turnId);
     }
     set({ playingId: turnId });
-    const t = turns.get(turnId);
-    // Playback now usually starts at stop, before the turn ends; the log is written once both are known.
-    if (t && t.playbackAt === null && t.stopAt !== null) {
-      t.playbackAt = atMs;
-      if (t.endAt !== null) writeLatencyLog(turnId);
-    }
   });
   player.on("playbackend", (turnId) => {
     set((s) => (s.playingId === turnId ? { playingId: null } : s));
@@ -477,7 +382,6 @@ function afterLogin(): void {
   void getConfig(pin).then((cfg) => {
     if (get().pin !== pin) return;
     if (cfg === "unauthorized") logout("PIN이 올바르지 않습니다");
-    else if (cfg) set({ transcriptsEnabled: cfg.saveTranscripts });
   });
 }
 
@@ -486,7 +390,7 @@ function logout(error: string | null): void {
   stopSession();
   wake?.release();
   wake = null;
-  set({ pin: null, pinError: error, pinBusy: false, transcriptsEnabled: false, sheetOpen: false });
+  set({ pin: null, pinError: error, pinBusy: false, sheetOpen: false });
 }
 
 export async function submitPin(pin: string): Promise<void> {
@@ -1019,7 +923,7 @@ export function initController(): void {
   onDevicesChanged(refreshMics);
   window.__ptt = { getState: get, stats, ...(get().mock ? { mockStats } : {}) };
   if (get().dual.role === "guest") {
-    // Guests skip the APP_PIN screen: no getConfig, no logs, no transcripts.
+    // Guests skip the APP_PIN screen: no getConfig.
     wake ??= keepScreenOn();
     void refreshBooth();
   } else if (get().pin) {

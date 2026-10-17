@@ -1,5 +1,5 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
-import type { AppMode, EngineId, FontScale, Settings, Theme, TurnLatencyLog } from "../types";
+import type { AppMode, EngineId, FontScale, Settings, Theme } from "../types";
 import { PIN_UNKNOWN } from "./dualStrings";
 import { ENGINE_LABEL } from "./i18n";
 import { IconClose } from "./icons";
@@ -12,12 +12,6 @@ export interface SettingsSheetProps {
   settings: SheetSettings;
   /** Microphones from enumerateDevices(); an empty label is shown as "마이크 N". */
   micDevices: MicDevice[];
-  /** Newest first. */
-  latencyLogs: TurnLatencyLog[];
-  /** Transcript saving is enabled on the server: shows the CSV download link. */
-  transcriptsEnabled?: boolean;
-  /** Download URL for the CSV link. */
-  csvHref?: string;
   onChange(patch: Partial<SheetSettings>): void;
   /** With `onAppModeChange`, shows the "사용 모드" (기본 / 듀얼 (마스터)) field at the top. */
   appMode?: AppMode;
@@ -82,41 +76,10 @@ function Segmented<T extends string | number>({ label, options, value, onChange,
   );
 }
 
-function ms(v: number | null): string {
-  return v === null ? "-" : `${Math.round(v)} ms`;
-}
-
-function clock(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleTimeString("ko-KR", { hour12: false });
-}
-
-function LogRow({ log }: { log: TurnLatencyLog }) {
-  return (
-    <div className="log__row" role="listitem">
-      <div className="log__head">
-        <span>{log.engine}</span>
-        <span>{clock(log.at)}</span>
-      </div>
-      <div className="log__nums">
-        <span>
-          {log.source}→{log.target}
-        </span>
-        <span>첫 음성 {ms(log.stopToFirstAudioMs)}</span>
-        <span>완료 {ms(log.stopToEndMs)}</span>
-        {log.endReason !== "completed" && <span>({log.endReason})</span>}
-      </div>
-    </div>
-  );
-}
-
 export function SettingsSheet({
   open,
   settings,
   micDevices,
-  latencyLogs,
-  transcriptsEnabled = false,
-  csvHref,
   onChange,
   appMode,
   onAppModeChange,
@@ -250,22 +213,6 @@ export function SettingsSheet({
               대화 기록 지우기
             </button>
           )}
-          {transcriptsEnabled && csvHref && (
-            <a className="btn" href={csvHref} download>
-              CSV 다운로드
-            </a>
-          )}
-        </div>
-
-        <div className="field">
-          <span className="field__label">지연 로그 (최근 순)</span>
-          <div className="log" role="list" aria-label="지연 로그">
-            {latencyLogs.length === 0 ? (
-              <div className="log__empty">아직 기록이 없습니다.</div>
-            ) : (
-              latencyLogs.map((l) => <LogRow key={l.turnId} log={l} />)
-            )}
-          </div>
         </div>
       </div>
     </div>

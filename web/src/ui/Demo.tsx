@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ConnectionStatus, FontScale, LayoutMode, PartnerLang, Speaker, Theme } from "../types";
 import { AppShell, Banner, ENGINE_SHORT, FacingLayout, Header, OneHandLayout, PinScreen, SessionBar, SettingsSheet } from "./index";
 import type { BannerKind, RecordingState, SheetSettings } from "./index";
-import { PLAYING_ID, SAMPLE_LOGS, SAMPLE_MICS, sampleMessages } from "./demoData";
+import { PLAYING_ID, SAMPLE_MICS, sampleMessages } from "./demoData";
 
 /*
  * Review screen. Every control is also a URL parameter so a state can be
@@ -171,9 +171,6 @@ export function Demo() {
           open={sheetOpen && !pinOpen}
           settings={settings}
           micDevices={SAMPLE_MICS}
-          latencyLogs={SAMPLE_LOGS}
-          transcriptsEnabled
-          csvHref="/api/transcripts.csv"
           onChange={(patch) => setSettings((s) => ({ ...s, ...patch }))}
           onClearHistory={() => setEmpty(true)}
           onClose={() => setSheetOpen(false)}

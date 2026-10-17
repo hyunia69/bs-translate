@@ -1,12 +1,11 @@
 import { create } from "zustand";
-import type { ConnectionStatus, DualState, Message, Settings, TurnLatencyLog } from "../types";
+import type { ConnectionStatus, DualState, Message, Settings } from "../types";
 import type { MicDevice, RecordingState } from "../ui/props";
 
 export const PIN_KEY = "ptt.pin";
 const SETTINGS_KEY = "ptt.settings";
 const MESSAGES_KEY = "ptt.messages";
 const MAX_MESSAGES = 200;
-const MAX_LATENCY_LOGS = 100;
 
 export const DEFAULT_SETTINGS: Settings = {
   partnerLang: "en",
@@ -58,9 +57,7 @@ export interface AppState {
   recording: RecordingState | null;
   recordingTurnId: string | null;
   playingId: string | null;
-  latencyLogs: TurnLatencyLog[];
   micDevices: MicDevice[];
-  transcriptsEnabled: boolean;
   sheetOpen: boolean;
   mock: boolean;
   /** Dual mode (docs/dual-protocol.md). Never persisted. */
@@ -108,9 +105,7 @@ export const useStore = create<AppState>(() => ({
   recording: null,
   recordingTurnId: null,
   playingId: null,
-  latencyLogs: [],
   micDevices: [],
-  transcriptsEnabled: false,
   sheetOpen: false,
   mock: new URLSearchParams(window.location.search).get("mock") === "1",
   dual: INITIAL_DUAL,
@@ -155,10 +150,6 @@ export function upsertPartnerMessage(m: Message): void {
 
 export function setDual(patch: Partial<DualState> | ((d: DualState) => Partial<DualState>)): void {
   useStore.setState((s) => ({ dual: { ...s.dual, ...(typeof patch === "function" ? patch(s.dual) : patch) } }));
-}
-
-export function addLatencyLog(log: TurnLatencyLog): void {
-  useStore.setState((s) => ({ latencyLogs: [log, ...s.latencyLogs].slice(0, MAX_LATENCY_LOGS) }));
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;

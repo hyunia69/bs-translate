@@ -146,23 +146,6 @@ export interface DualWireMessage {
   createdAt: number;
 }
 
-export interface TurnLatencyLog {
-  turnId: string;
-  engine: string;
-  source: Lang;
-  target: Lang;
-  recordMs: number;
-  /** stop tap -> first translated audio sample received (ms) */
-  stopToFirstAudioMs: number | null;
-  /** stop tap -> playback actually started (ms) */
-  stopToPlaybackMs: number | null;
-  /** stop tap -> onTurnEnd (ms) */
-  stopToEndMs: number | null;
-  endReason: TurnEndReason;
-  audioBytesSent: number | null;
-  at: string; // ISO time
-}
-
 /** Server API contract (all JSON). */
 export interface SessionRequest {
   pin: string;

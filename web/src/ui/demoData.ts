@@ -1,4 +1,4 @@
-import type { Message, MessageStatus, PartnerLang, Speaker, TurnLatencyLog } from "../types";
+import type { Message, MessageStatus, PartnerLang, Speaker } from "../types";
 import type { MicDevice } from "./props";
 
 interface Line {
@@ -80,46 +80,4 @@ export const SAMPLE_MICS: MicDevice[] = [
   { deviceId: "default", label: "기본 - 내장 마이크" },
   { deviceId: "bt-1", label: "Galaxy Buds2 Pro" },
   { deviceId: "usb-1", label: "" },
-];
-
-export const SAMPLE_LOGS: TurnLatencyLog[] = [
-  {
-    turnId: "t-103",
-    engine: "gpt-realtime-translate",
-    source: "ko",
-    target: "en",
-    recordMs: 4200,
-    stopToFirstAudioMs: 812,
-    stopToPlaybackMs: 870,
-    stopToEndMs: 2410,
-    endReason: "completed",
-    audioBytesSent: 134_000,
-    at: "2026-10-16T10:42:18+09:00",
-  },
-  {
-    turnId: "t-102",
-    engine: "gpt-realtime-translate",
-    source: "en",
-    target: "ko",
-    recordMs: 3100,
-    stopToFirstAudioMs: 1024,
-    stopToPlaybackMs: 1090,
-    stopToEndMs: 3150,
-    endReason: "completed",
-    audioBytesSent: 99_000,
-    at: "2026-10-16T10:41:52+09:00",
-  },
-  {
-    turnId: "t-101",
-    engine: "GPT-Live-1",
-    source: "ko",
-    target: "en",
-    recordMs: 60_000,
-    stopToFirstAudioMs: null,
-    stopToPlaybackMs: null,
-    stopToEndMs: 8000,
-    endReason: "timeout",
-    audioBytesSent: 1_920_000,
-    at: "2026-10-16T10:40:05+09:00",
-  },
 ];
